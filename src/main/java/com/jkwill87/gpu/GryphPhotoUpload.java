@@ -1,4 +1,4 @@
-package com.jessywilliams.gpu;
+package com.jkwill87.gpu;
 
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -20,18 +20,19 @@ import java.nio.file.Files;
 
 public class GryphPhotoUpload extends JFrame {
 
+    protected JButton uploadButton;
+    protected JLabel progressLabel;
+    protected JProgressBar progressBar;
+
     /* GUI Vars */
     private JButton dirButton;
     private JButton loginButton;
-    protected JButton uploadButton;
     private JLabel dirLabel;
     private JLabel passwordLabel;
-    protected JLabel progressLabel;
     private JLabel usernameLabel;
     private JPanel mainPanel;
     private JPanel progressPanel;
     private JPasswordField passwordField;
-    protected JProgressBar progressBar;
     private JTextField dirField;
     private JTextField usernameField;
 
@@ -118,7 +119,7 @@ public class GryphPhotoUpload extends JFrame {
         new GryphPhotoUpload("Gryph Photo Uploader");
     }
 
-    protected static String execPath() throws UnsupportedEncodingException {
+    static String execPath() throws UnsupportedEncodingException {
         String execPath;
         execPath = GryphPhotoUpload.class.getProtectionDomain().getCodeSource().getLocation().getPath();
         execPath = URLDecoder.decode(execPath, "UTF-8");
@@ -126,14 +127,14 @@ public class GryphPhotoUpload extends JFrame {
         return execPath;
     }
 
-    protected static boolean extractResources() {
+    private static boolean extractResources() {
 
         String[] toCopy = {
                 "done_button.png",
                 "entry_field.png",
                 "IEDriverServer.exe",
-                "upload_button.png",
-                "yes_button.png"
+                "picture_saved.png",
+                "upload_button.png"
         };
 
         try {
@@ -155,6 +156,56 @@ public class GryphPhotoUpload extends JFrame {
             return false;
         }
         return true;
+    }
+
+    private class UploadButtonListener implements ActionListener {
+        GryphPhotoUpload gpu;
+
+        UploadButtonListener(GryphPhotoUpload gpu) {
+            this.gpu = gpu;
+        }
+
+        public void actionPerformed(ActionEvent e) {
+            JFileChooser dirChooser = new JFileChooser();
+            try {
+                dirChooser.setCurrentDirectory(new File(execPath()));
+            } catch (UnsupportedEncodingException e1) {
+                return;
+            }
+            dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            dirChooser.setAcceptAllFileFilterUsed(false);
+            if (dirChooser.showOpenDialog(dirButton) == JFileChooser.APPROVE_OPTION) {
+
+                /* Check if any suitable images were found */
+                String imagePath = dirChooser.getSelectedFile().getPath();
+                batchUpload = new BatchUpload(connection, gpu, imagePath);
+
+                /* If found.. */
+                if (batchUpload.customerCount() > 0) {
+
+                    /* Fill path into path field */
+                    dirField.setText(imagePath);
+
+                    /* Lock directory add pane, unlock login pane*/
+                    dirButton.setEnabled(false);
+                    dirField.setEnabled(false);
+                    loginButton.setEnabled(true);
+                    usernameField.setEnabled(true);
+                    passwordField.setEnabled(true);
+
+                    /* Set progress label */
+                    progressLabel.setText("0 of " + batchUpload.customerCount());
+                }
+
+                /* Otherwise notify w/ a popup if not */
+                else {
+                    JOptionPane.showMessageDialog(null,
+                            "No suitable image files found.",
+                            "Selection error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
     }
 
     {
@@ -225,56 +276,4 @@ public class GryphPhotoUpload extends JFrame {
     public JComponent $$$getRootComponent$$$() {
         return mainPanel;
     }
-
-    private class UploadButtonListener implements ActionListener {
-        GryphPhotoUpload gpu;
-
-        public UploadButtonListener(GryphPhotoUpload gpu) {
-            this.gpu = gpu;
-        }
-
-        public void actionPerformed(ActionEvent e) {
-            JFileChooser dirChooser = new JFileChooser();
-            try {
-                dirChooser.setCurrentDirectory(new File(execPath()));
-            } catch (UnsupportedEncodingException e1) {
-                return;
-            }
-            dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            dirChooser.setAcceptAllFileFilterUsed(false);
-            if (dirChooser.showOpenDialog(dirButton) == JFileChooser.APPROVE_OPTION) {
-
-                /* Check if any suitable images were found */
-                String imagePath = dirChooser.getSelectedFile().getPath();
-                batchUpload = new BatchUpload(connection, gpu);
-                batchUpload.createCustomerList(imagePath);
-
-                /* If found.. */
-                if (batchUpload.customerCount() > 0) {
-
-                    /* Fill path into path field */
-                    dirField.setText(imagePath);
-
-                    /* Lock directory add pane, unlock login pane*/
-                    dirButton.setEnabled(false);
-                    dirField.setEnabled(false);
-                    loginButton.setEnabled(true);
-                    usernameField.setEnabled(true);
-                    passwordField.setEnabled(true);
-
-                    /* Set progress label */
-                    progressLabel.setText("0 of " + batchUpload.customerCount());
-                }
-
-                /* Otherwise notify w/ a popup if not */
-                else {
-                    JOptionPane.showMessageDialog(null,
-                            "No suitable image files found.",
-                            "Selection error",
-                            JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        }
-    }
-
 }

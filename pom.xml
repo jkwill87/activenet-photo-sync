@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.jessywilliams</groupId>
+    <groupId>com.jkwill87</groupId>
     <artifactId>gryph-photo-upload</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
@@ -98,7 +98,7 @@
                         <transformer
                                 implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <manifestEntries>
-                                <Main-Class>com.jessywilliams.gpu.GryphPhotoUpload</Main-Class>
+                                <Main-Class>com.jkwill87.gpu.GryphPhotoUpload</Main-Class>
                                 <Build-Number>1</Build-Number>
                             </manifestEntries>
                         </transformer>

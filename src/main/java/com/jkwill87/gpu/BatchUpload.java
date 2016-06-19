@@ -1,4 +1,4 @@
-package com.jessywilliams.gpu;
+package com.jkwill87.gpu;
 
 import javax.swing.*;
 import java.io.File;
@@ -7,12 +7,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.jessywilliams.gpu.GryphPhotoUpload.execPath;
+import static com.jkwill87.gpu.GryphPhotoUpload.execPath;
 
-public class BatchUpload extends SwingWorker<Integer, String> {
+class BatchUpload extends SwingWorker<Integer, String> {
 
-    private static final String SQL_INSERT = "INSERT INTO customers VALUES(?,?,?,?)";
-    private static final String SQL_DELETE_ID = "DELETE FROM customers WHERE ID = ?";
+    private static final String SQL_INSERT = "INSERT INTO customers VALUES(?,?,?,?,?)";
+    private static final String SQL_DELETE_ID = "DELETE FROM customers WHERE universityId = ?";
     private volatile boolean isPaused;
     private int uploadCurrent;
     private ArrayList<Customer> customers = null;
@@ -20,35 +20,45 @@ public class BatchUpload extends SwingWorker<Integer, String> {
     private Connection sqlConnection;
     private GryphPhotoUpload master;
 
-    protected BatchUpload(ActiveNet activeNet, GryphPhotoUpload master) {
+    BatchUpload(ActiveNet activeNet, GryphPhotoUpload master, String imagePath) {
         this.uploadCurrent = 0;
         this.activeNetConnection = activeNet;
         this.master = master;
-        sqlConnection = createConnection();
-        customers = new ArrayList<>();
-    }
 
-    private static Connection createConnection() {
+        /* Open else creates a SQLite database to record upload transactions */
         String query = "CREATE TABLE IF NOT EXISTS customers (\n"
-                + "	id INTEGER NOT NULL,\n"
+                + "	universityId INTEGER NOT NULL,\n"
+                + "	activeId INTEGER,\n"
                 + "	name VARCHAR,\n"
                 + "	uploaded BOOLEAN NOT NULL,\n"
                 + "	updated TIME NOT NULL,\n"
-                + "	PRIMARY KEY (ID)\n"
+                + "	PRIMARY KEY (universityId)\n"
                 + ");";
-        String url;
-        Connection sqlConnection;
         try {
-            url = "jdbc:sqlite:" + execPath() + "/resources/customerRecord.db";
+            String url = "jdbc:sqlite:" + execPath() + "/resources/customerRecord.db";
             sqlConnection = DriverManager.getConnection(url);
             Statement sqlStatement = sqlConnection.createStatement();
             sqlStatement.execute(query);
             System.out.println("Using SQLite database file: " + execPath() + "/resources/customerRecord.db");
 
         } catch (Exception ignored) {
-            return null;
+            sqlConnection = null;
         }
-        return sqlConnection;
+
+        /* Create an ArrayList of unique customer images */
+        customers = new ArrayList<>();
+        for (String file : getImagePaths(imagePath)) {
+            Customer customer = new Customer(file);
+            if (customer.universityId == 0) continue;
+            if (!photoInDB(customer.universityId)) customers.add(new Customer(file));
+        }
+
+        /*  Sort unique entries by student or employee number */
+        Collections.sort(customers);
+        for (int i = 0; i + 1 < customers.size(); i++) {
+            if (customers.get(i).universityId == customers.get(i + 1).universityId)
+                customers.remove(i--);
+        }
     }
 
     private static ArrayList<String> getImagePaths(String directory) {
@@ -66,26 +76,50 @@ public class BatchUpload extends SwingWorker<Integer, String> {
         return imagePaths;
     }
 
-    protected final void pause() {
+    /**
+     * Stops the SwingWorker from possessing the next photo upload.
+     */
+    final void pause() {
         if (!isPaused() && !isDone()) {
             isPaused = true;
             firePropertyChange("paused", false, true);
         }
     }
 
-    protected final void resume() {
+    /**
+     * Resumes the SwingWorker if paused, allowing it proceed to uploading the next photo.
+     */
+    final void resume() {
         if (isPaused() && !isDone()) {
             isPaused = false;
             firePropertyChange("paused", true, false);
         }
     }
 
-    protected final boolean isPaused() {
+    /**
+     * @return true if SwingWorker paused else false.
+     */
+    final boolean isPaused() {
         return isPaused;
     }
 
+    /**
+     * Provides for the total number of images queued to be uploaded.
+     *
+     * @return the number of queued images as an integer.
+     */
+    int customerCount() {
+        if (this.customers == null) return 0;
+        return this.customers.size();
+    }
+
+    /**
+     * Processes image uploads on a separate, interruptable thread.
+     *
+     * @return 0 on success, 1 on failure.
+     */
     @Override
-    protected Integer doInBackground() throws Exception {
+    protected Integer doInBackground() {
 
         int resets = 0;
         int maxResets = 3;
@@ -125,6 +159,7 @@ public class BatchUpload extends SwingWorker<Integer, String> {
                                 break;
                             case ActiveNet.FAILURE:
                             default:  // shouldn't happen
+                                updateDB(currentCustomer, false);
                                 activeNetConnection.reset(currentCustomer);
                                 System.out.printf("upload error: retry %d/%d\n", resets, maxResets);
                                 resets++;
@@ -148,9 +183,12 @@ public class BatchUpload extends SwingWorker<Integer, String> {
                 publish(uploadCurrent + " of " + customers.size());
 
             } else {
-                Thread.sleep(500);
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-
         }
 
         master.uploadButton.setVisible(false);
@@ -168,35 +206,13 @@ public class BatchUpload extends SwingWorker<Integer, String> {
         master.progressLabel.setText(chunks.get(0));
     }
 
-    protected int customerCount() {
-        if (this.customers == null) return 0;
-        return this.customers.size();
-    }
-
-    protected ArrayList<Customer> createCustomerList(String imagePath) {
-        for (String file : getImagePaths(imagePath)) {
-            Customer customer = new Customer(file);
-            if (customer.studentNumber == 0) continue;
-            if (!photoInDB(customer.studentNumber)) this.customers.add(new Customer(file));
-        }
-
-        /*  Sort and remove duplicates*/
-        Collections.sort(customers);
-        for (int i = 0; i + 1 < this.customers.size(); i++) {
-            if (this.customers.get(i).studentNumber == this.customers.get(i + 1).studentNumber)
-                this.customers.remove(i--);
-        }
-
-        return customers;
-    }
-
-    protected boolean photoInDB(int studentNumber) {
-        String query = "SELECT CAST(COUNT(1) AS BOOLEAN) AS RESP FROM customers WHERE ID = ? AND (uploaded OR name IS NULL)";
+    private boolean photoInDB(int universityId) {
+        String query = "SELECT CAST(COUNT(1) AS BOOLEAN) AS RESP FROM customers WHERE universityId = ? AND (uploaded OR name IS NULL)";
         boolean inDB = false;
 
         try {
             PreparedStatement ps = sqlConnection.prepareStatement(query);
-            ps.setInt(1, studentNumber);
+            ps.setInt(1, universityId);
             ResultSet rs = ps.executeQuery();
             inDB = rs.getBoolean("RESP");
         } catch (SQLException e) {
@@ -207,18 +223,18 @@ public class BatchUpload extends SwingWorker<Integer, String> {
     }
 
     private void updateDB(Customer customer, boolean uploaded) {
-        String query = "INSERT OR REPLACE INTO customers(id,name,uploaded,updated) VALUES(?,?,?,?)";
+        String query = "INSERT OR REPLACE INTO customers(universityId,activeId,name,uploaded,updated) VALUES(?,?,?,?,?)";
         try {
             PreparedStatement ps = this.sqlConnection.prepareStatement(query);
-            ps.setInt(1, customer.studentNumber);
-            ps.setString(2, customer.name);
-            ps.setBoolean(3, uploaded);
-            ps.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            ps.setInt(1, customer.universityId);
+            ps.setInt(2, customer.activeId);
+            ps.setString(3, customer.name);
+            ps.setBoolean(4, uploaded);
+            ps.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
             ps.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
 
     }
-
 }
