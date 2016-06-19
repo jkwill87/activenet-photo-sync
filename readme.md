@@ -1,10 +1,11 @@
 # gryph-photo-upload (GPU)
 
-The `gryph-photo-upload` tool can be used to batch upload client images into an [ActiveNet](http://www.activenetwork.com/solutions/active-net) system. In this application it was used to upload ~30,000 student and faculty images for the [University of Guelph's Athletic Department](http://gryphons.ca), however could possibly be adapted for other facilities.
+The `gryph-photo-upload` tool can be used to batch upload client images into [ActiveNet](http://www.activenetwork.com/solutions/active-net). It was used to upload ~30,000 student and faculty images for the [University of Guelph's Athletic Department](http://gryphons.ca), however could possibly be adapted for other facilities which use ActiveNet's backend.
+
 
 ## Requirements
 
-* Running Windows 7+
+* Windows 7+ (for compatibility with ActiveNet's Java applet)
 * ActiveNet added to Internet Explorer's trusted sites (see below)
 * Java installed and updated (see below)
 
