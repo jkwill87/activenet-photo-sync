@@ -68,7 +68,8 @@ class BatchUpload extends SwingWorker<Integer, String> {
             for (File aListFile : listFile) {
                 if (aListFile.isDirectory()) {
                     imagePaths.addAll(getImagePaths(aListFile.getAbsolutePath()));
-                } else if (aListFile.getName().matches("\\d{0,3}[1-9]\\d{5}\\.jpg")) {
+//                } else if (aListFile.getName().matches("\\d{0,3}[1-9]\\d{5}\\.jpg")) {
+                } else if (aListFile.getName().matches("\\d{9}\\.jpg")) {
                     imagePaths.add(aListFile.getAbsolutePath());
                 }
             }

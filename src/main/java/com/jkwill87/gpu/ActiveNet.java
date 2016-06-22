@@ -97,15 +97,11 @@ public class ActiveNet {
         /* Abort early if not connected or authenticated */
         if (!isConnected() || !isAuthenticated()) return FAILURE;
 
-        try {
-            /* Go to customer search page */
-            webDriver.get("https://anprodca.active.com/uofg/servlet/admin.sdi?oc=Customer");
-            WebElement id_entry = webDriver.findElement(By.id("akt_value_1"));
+        int atk = customer.universityId > 1000000 ? 2 : 1;  // alt key lookup: 2 for staff, 1 for students
 
-            /* Enter student number prepended by zero */
-            id_entry.sendKeys(customer.toString());
-            WebElement form = webDriver.findElement(By.name("akt_use_as_direct_access"));
-            form.submit();
+        try {
+            /* Go to customer page */
+            webDriver.get("https://anprodca.active.com/uofg/servlet/adminChange.sdi?oc=Customer&akt_id=" + atk + "&akt_ids=2,1&akt_value_" + atk + "=" + customer.toString());
 
             /* Success if page name begins with "Customer:" */
             if (!webDriver.getTitle().contains("Customer:")) return FAILURE;
