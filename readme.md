@@ -1,7 +1,9 @@
 # activenet-photo-sync (aps)
 
-`activenet-photo-sync` is a tool can be used to batch upload images into [ActiveNet](http://www.activenetwork.com/solutions/active-net). It it multithreaded and can use multiple workers to process images quickly. It was able to upload  ~42,000 / 17GB student and faculty images for the [University of Guelph's Athletic Department](http://gryphons.ca) in about 15 minutes and should be adaptable for other facilities which use ActiveNet's backend.
+`activenet-photo-sync` is a CLI tool can be used to batch upload images into [ActiveNet](http://www.activenetwork.com/solutions/active-net). It it multithreaded and can use multiple workers to process images quickly. It was able to upload  ~42,000 / 17GB student and faculty images for the [University of Guelph's Athletic Department](http://gryphons.ca) in about 15 minutes and should be adaptable for other facilities which use ActiveNet's backend.
 
+
+![activenet-photo-sync](./aps.gif)
 
 ## Requirements
 
@@ -10,12 +12,14 @@
 
 ## Building a distributable executable (shaded JAR)
 
-The application can be compiled and packaged into a single executable .jar file using maven. Run the command `mvn clean package` from the project's top-level directory. The included **pom.xml** file will download all required dependencies and build a single file jar file, **aps.jar**, inside the **target** directory.   
+The application can be compiled and packaged into a single executable .jar file using maven. Run the command `mvn clean package` from the project's top-level directory. The included **pom.xml** file will download all required dependencies and build a single file jar file, **aps.jar**, inside the **target** directory.
 
 
 ## Running the Program
 
 Images need to be named using either am ActiveNet ID or alternate key that corresponds to their account on ActiveNet. The program will crawl for them recursively so they can be organized in subdirectories.
+
+Run the command using the command `java -jar aps.jar`. The program uses the System.console() method so it will likely not work inside of an IDE.
 
 When running the program you will need to provide credentials for a MySQL server created with a database named 'aps' containing a table named customer, which can be created like follows:
 
