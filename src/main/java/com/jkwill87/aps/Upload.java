@@ -22,17 +22,41 @@ import java.sql.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+enum UploadEvent {
+    UPLOADED("UPLOADED", "uploaded"),
+    NOTFOUND("NOTFOUND", "not found"),
+    SKIPPED("SKIPPED", "skipped"),
+    IMGERROR("IMGERROR", "image error");
+
+    private String e, s;
+
+    UploadEvent(String e, String s) {
+        this.e = e;
+        this.s = s;
+    }
+
+    public String event() {
+        return this.e;
+    }
+
+    public String text() {
+        return this.s;
+    }
+}
+
 public class Upload implements Runnable {
 
     private Connection connection;
     private CookieStore cookieStore;
     private File file;
     private URI uri;
+    private boolean logging;
 
-    public Upload(String url, Connection con, CookieStore cs, File f) {
+    public Upload(String url, Connection con, CookieStore cs, File f, boolean logging) {
         this.connection = con;
         this.cookieStore = cs;
         this.file = f;
+        this.logging = logging;
         try {
             this.uri = new URI(url + "adminChange.sdi");
         } catch (URISyntaxException e) {
@@ -72,26 +96,35 @@ public class Upload implements Runnable {
         try {
             currentCustomer = new Customer(file);
         } catch (IOException e) {
-            System.err.println(file + " not found?");
-            return;
-        }
-
-        /* Skip if already indexed */
-        if (dbKeyExists(currentCustomer.primaryID)) {
-            System.err.println(file + " already indexed.");
+            log(file, UploadEvent.IMGERROR);
             return;
         }
 
         try {
+
+            /* Skip if already indexed */
+            if (dbKeyExists(currentCustomer.primaryID)) {
+                log(file, UploadEvent.SKIPPED);
+                return;
+            }
+
+            /* Check against student/ staff alternate keys
+             * ..this code is specific to the University of Guelph */
             query = RequestBuilder.post()
                     .setUri(this.uri)
                     .addParameter("xnetframe", "false")
                     .addParameter("oc", "Customer")
-                    .addParameter("reset_pattern", "true")
-                    .addParameter("scan_card", "true")
+                    .addParameter("akt_id",
+                            (currentCustomer.isStudent ? "1" : "2"))
                     .addParameter("akt_ids", "2,1")
-                    .addParameter("scan_element", currentCustomer.toString())
+                    .addParameter("reset_pattern", "true")
+                    .addParameter("search_alternateKey", "true")
+                    .addParameter(
+                            "akt_value_" + (currentCustomer.isStudent ? "1" : "2"),
+                            currentCustomer.toString()
+                    )
                     .build();
+
             CloseableHttpResponse r = chc.execute(query);
 
             /* Parse response */
@@ -99,40 +132,36 @@ public class Upload implements Runnable {
             Document doc = Jsoup.parse(EntityUtils.toString(entity, "UTF-8"));
             EntityUtils.consume(entity);
 
-            /* Check for hit using swipe */
+            /* Fall back to using swipe if missed */
             if (doc.title().equals("Find Customer")) {
 
-                /* Check for hit using student number or staff ID */
                 query = RequestBuilder.post()
                         .setUri(this.uri)
                         .addParameter("xnetframe", "false")
                         .addParameter("oc", "Customer")
-                        .addParameter("akt_id",
-                                (currentCustomer.isStudent ? "1" : "2"))
-                        .addParameter("akt_ids", "2,1")
                         .addParameter("reset_pattern", "true")
-                        .addParameter("search_alternateKey", "true")
-                        .addParameter(
-                                "akt_value_" + (currentCustomer.isStudent ? "1" : "2"),
-                                currentCustomer.toString()
-                        )
+                        .addParameter("scan_card", "true")
+                        .addParameter("akt_ids", "2,1")
+                        .addParameter("scan_element", currentCustomer.toString())
                         .build();
                 r = chc.execute(query);
                 EntityUtils.consume(entity);
-                  /* Parse response */
+
+                /* Parse response */
                 entity = r.getEntity();
                 doc = Jsoup.parse(EntityUtils.toString(entity, "UTF-8"));
                 EntityUtils.consume(entity);
 
                 if (doc.title().equals("Find Customer")) {
-                    System.err.println(file + " not found on ActiveNet.");
+                    log(file, UploadEvent.NOTFOUND);
+
                     return;
                 }
             }
             Pattern p = Pattern.compile(".+#(\\d+)\\)");
             Matcher m = p.matcher(doc.title());
             if (!m.find()) {
-                System.err.println(file + " not found on ActiveNet.");
+                log(file, UploadEvent.NOTFOUND);
                 return;
             }
 
@@ -149,8 +178,8 @@ public class Upload implements Runnable {
                     Thread.sleep(5000);  // wait 1 second
                     upload(file, currentCustomer.activeID);
                 } catch (ImageError | InterruptedException err) {
-                    System.err.println("ERROR: Could not upload "
-                            + currentCustomer.activeID);
+                    log(file, UploadEvent.IMGERROR);
+
                     return;
                 }
             }
@@ -166,10 +195,10 @@ public class Upload implements Runnable {
                 }
                 dbInsert(currentCustomer);
             }
-            System.out.println(file + " uploaded.");
+            log(file, UploadEvent.UPLOADED);
 
         } catch (IOException ignored) {
-            System.err.println("ERROR: Could not upload");
+            log(file, UploadEvent.IMGERROR);
         }
 
         try {
@@ -278,7 +307,7 @@ public class Upload implements Runnable {
         try {
             bImg = ImageIO.read(file);
         } catch (IOException e) {
-            System.err.println(file + " could not be read ");
+            log(file, UploadEvent.IMGERROR);
             throw new ImageError();
         }
 
@@ -371,7 +400,7 @@ public class Upload implements Runnable {
         boolean exists = false;
         try {
             stmt = this.connection.createStatement();
-            rs = stmt.executeQuery("SELECT COUNT(*) FROM customer WHERE primaryID= "
+            rs = stmt.executeQuery("SELECT COUNT(*) FROM customer WHERE primaryID="
                     + primaryID);
             rs.next();
             exists = rs.getInt(1) == 1;
@@ -381,6 +410,34 @@ public class Upload implements Runnable {
             e.printStackTrace();
         }
         return exists;
+    }
+
+    private void log(File file, UploadEvent ue) {
+
+        /* Print message to screen */
+        switch (ue) {
+            case UPLOADED:
+            case SKIPPED:
+                System.out.printf("%s %s.\n", file, ue.text());
+                break;
+            case NOTFOUND:
+            case IMGERROR:
+                System.err.printf("%s %s.\n", file, ue.text());
+                break;
+        }
+
+        /* Log to SQL Server */
+        if (!this.logging) return;
+        try {
+            PreparedStatement ps = this.connection.prepareStatement(
+                    "INSERT INTO log VALUES (?, ?, DEFAULT)");
+            ps.setLong(1, Customer.getId(file));
+            ps.setString(2, ue.event());
+            ps.executeUpdate();
+            ps.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
 

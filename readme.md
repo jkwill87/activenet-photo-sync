@@ -36,6 +36,15 @@ CREATE TABLE customer
     email VARCHAR(100),
     uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE TABLE log
+(
+    primaryID BIGINT(20) NOT NULL,
+    event CHAR(8) NOT NULL,
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX primaryID ON log (primaryID);
+
 ```
 
 These credentials must also be able to log into ActiveNet and have sufficient priviledges to make account changes.

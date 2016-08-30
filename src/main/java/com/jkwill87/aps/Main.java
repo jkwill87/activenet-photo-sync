@@ -80,8 +80,12 @@ public class Main {
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         for (File image : images) {
             Runnable worker = new Upload(
-                    activeNet.getUrl(), activeNet.getSqlConnection(),
-                    activeNet.getCookieStore(), image);
+                    activeNet.getUrl(),
+                    activeNet.getSqlConnection(),
+                    activeNet.getCookieStore(),
+                    image,
+                    false  // logging disabled by default
+            );
             executor.execute(worker);
         }
         executor.shutdown();
@@ -239,4 +243,6 @@ public class Main {
         System.out.println();
         System.out.println(activeNet.getCustomerCount() + " images on server.");
     }
+
+
 }

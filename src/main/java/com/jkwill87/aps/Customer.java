@@ -20,7 +20,7 @@ class Customer implements Comparator<Customer>, Comparable<Customer> {
         this.isStudent = this.primaryID < 1000000;
     }
 
-    private static long getId(File file) {
+    public static long getId(File file) {
         String parsed = file.getName().replaceAll("[^0-9]", "");
         return (parsed.isEmpty() || parsed.length() > 11)
                 ? 0 : Long.parseLong(parsed);
