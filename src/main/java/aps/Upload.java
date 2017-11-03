@@ -1,4 +1,4 @@
-package com.jkwill87.aps;
+package aps;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.CookieStore;
@@ -18,7 +18,6 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.sql.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,17 +45,15 @@ enum UploadEvent {
 
 public class Upload implements Runnable {
 
-    private Connection connection;
     private CookieStore cookieStore;
     private File file;
     private URI uri;
-    private boolean logging;
+    private CustomerStore customerStore;
 
-    public Upload(String url, Connection con, CookieStore cs, File f, boolean logging) {
-        this.connection = con;
+    public Upload(String url, CookieStore cs, CustomerStore customerStore, File imageFile) {
         this.cookieStore = cs;
-        this.file = f;
-        this.logging = logging;
+        this.customerStore = customerStore;
+        this.file = imageFile;
         try {
             this.uri = new URI(url + "adminChange.sdi");
         } catch (URISyntaxException e) {
@@ -103,7 +100,7 @@ public class Upload implements Runnable {
         try {
 
             /* Skip if already indexed */
-            if (dbKeyExists(currentCustomer.primaryID)) {
+            if (customerStore.customer_included(currentCustomer)) {
                 log(file, UploadEvent.SKIPPED);
                 return;
             }
@@ -186,14 +183,14 @@ public class Upload implements Runnable {
 
             /* Enter into database, retry on error */
             try {
-                dbInsert(currentCustomer);
+                customerStore.customer_add(currentCustomer);
             } catch (Exception ignored) {
                 try {
                     Thread.sleep(5000);  // wait 1 second
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 }
-                dbInsert(currentCustomer);
+                customerStore.customer_add(currentCustomer);
             }
             log(file, UploadEvent.UPLOADED);
 
@@ -206,30 +203,6 @@ public class Upload implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    private boolean dbInsert(Customer customer) {
-
-        try {
-            String SQL_INSERT_CUSTOMER = "REPLACE INTO customer("
-                    + "primaryID,"
-                    + "activeID,"
-                    + "name,"
-                    + "email"
-                    + ") VALUES(?,?,?,?)";
-            PreparedStatement ps = this.connection.prepareStatement(
-                    SQL_INSERT_CUSTOMER);
-            ps.setLong(1, customer.primaryID);
-            ps.setInt(2, customer.activeID);
-            ps.setString(3, customer.name);
-            ps.setString(4, customer.email);
-            ps.executeUpdate();
-            ps.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
-        return true;
     }
 
 
@@ -394,23 +367,6 @@ public class Upload implements Runnable {
         return boundary;
     }
 
-    protected boolean dbKeyExists(long primaryID) {
-        Statement stmt;
-        ResultSet rs;
-        boolean exists = false;
-        try {
-            stmt = this.connection.createStatement();
-            rs = stmt.executeQuery("SELECT COUNT(*) FROM customer WHERE primaryID="
-                    + primaryID);
-            rs.next();
-            exists = rs.getInt(1) == 1;
-            rs.close();
-            stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return exists;
-    }
 
     private void log(File file, UploadEvent ue) {
 
@@ -424,19 +380,6 @@ public class Upload implements Runnable {
             case IMGERROR:
                 System.err.printf("%s %s.\n", file, ue.text());
                 break;
-        }
-
-        /* Log to SQL Server */
-        if (!this.logging) return;
-        try {
-            PreparedStatement ps = this.connection.prepareStatement(
-                    "INSERT INTO log VALUES (?, ?, DEFAULT)");
-            ps.setLong(1, Customer.getId(file));
-            ps.setString(2, ue.event());
-            ps.executeUpdate();
-            ps.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 }

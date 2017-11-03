@@ -1,4 +1,4 @@
-package com.jkwill87.aps;
+package aps;
 
 import java.io.File;
 import java.io.IOException;
@@ -7,23 +7,26 @@ import java.util.Objects;
 
 class Customer implements Comparator<Customer>, Comparable<Customer> {
 
-    long primaryID = 0;
+    int primaryID = 0;
     int activeID = 0;
-
     String name = null;
     String email = null;
     boolean isStudent;
 
-    Customer(File srcFile) throws IOException {
-        if (!srcFile.isFile()) throw new IOException();
-        this.primaryID = getId(srcFile);
+    Customer(File imagePath) throws IOException {
+        if (!imagePath.isFile()) throw new IOException();
+        String parsed = imagePath.getName().replaceAll("[^0-9]", "");
+        this.primaryID = (parsed.isEmpty() || parsed.length() > 11)
+                ? 0 : Integer.parseInt(parsed);
         this.isStudent = this.primaryID < 1000000;
     }
 
-    public static long getId(File file) {
-        String parsed = file.getName().replaceAll("[^0-9]", "");
-        return (parsed.isEmpty() || parsed.length() > 11)
-                ? 0 : Long.parseLong(parsed);
+    Customer(int primaryID, int activeID, String name, String email) {
+        this.primaryID = primaryID;
+        this.activeID = activeID;
+        this.name = name;
+        this.email = email;
+        this.isStudent = this.primaryID < 1000000;
     }
 
     public String toString() {
@@ -46,5 +49,10 @@ class Customer implements Comparator<Customer>, Comparable<Customer> {
                     ((Customer) object).primaryID);
         }
         return sameSame;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.primaryID;
     }
 }
