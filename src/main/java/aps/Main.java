@@ -64,7 +64,6 @@ public class Main {
         return imagePaths;
     }
 
-
     private static ActiveNet login() {
         Console console = System.console();
         String username;
@@ -73,7 +72,7 @@ public class Main {
 
         System.out.println("Authentication Required");
         while (true) {
-            String anDomain = console.readLine("ActiveNet Domain? ");
+            String anDomain = "uofg";
             username = console.readLine("Username? ");
             password = new String(console.readPassword("Password? "));
 
@@ -87,7 +86,6 @@ public class Main {
             break;
         }
         System.out.println();
-//        System.out.println(activeNet.getCustomerCount() + " images on server.");
         return activeNet;
     }
 }
